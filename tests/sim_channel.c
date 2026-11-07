@@ -250,6 +250,92 @@ static int run_benchmark(void)
     return 0;
 }
 
+static inline uint64_t bench_cycles_now(void)
+{
+#if (defined(__GNUC__) || defined(__clang__)) && (defined(__x86_64__) || defined(__i386__))
+    uint32_t lo = 0u;
+    uint32_t hi = 0u;
+    __asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
+    return ((uint64_t)hi << 32u) | (uint64_t)lo;
+#elif (defined(__GNUC__) || defined(__clang__)) && defined(__aarch64__)
+    uint64_t val = 0ULL;
+    __asm__ __volatile__("mrs %0, cntvct_el0" : "=r"(val));
+    return val;
+#else
+    return 0ULL;
+#endif
+}
+
+static int run_throughput_benchmark(void)
+{
+    static const uint8_t key[32] = {
+        0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87,
+        0x88, 0x89, 0x8a, 0x8b, 0x8c, 0x8d, 0x8e, 0x8f,
+        0x90, 0x91, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97,
+        0x98, 0x99, 0x9a, 0x9b, 0x9c, 0x9d, 0x9e, 0x9f
+    };
+    static const uint8_t salt[4] = {0xa0, 0xa1, 0xa2, 0xa3};
+    static const size_t payload_sizes[5] = {64u, 256u, 512u, 1024u, 1400u};
+    const uint32_t iters = 2000u;
+
+    printf("\n====================================================================================\n");
+    printf(" c-esp In-Place Data-Plane Throughput Sweep (Encrypt + Anti-Replay + Decrypt)\n");
+    printf(" Iterations/Size: %u | Zero-Copy Arena Buffer | ESN: 64-Bit Enabled\n", iters);
+    printf("====================================================================================\n");
+    printf(" Payload Size | RFC 7634 ChaCha20-Poly1305 | RFC 4106 Table-Free AES-256-GCM\n");
+    printf(" (Bytes)      | (Cycles/Byte Round-Trip)   | (Cycles/Byte Round-Trip)\n");
+    printf("--------------+----------------------------+----------------------------------------\n");
+
+    for (size_t s = 0u; s < 5u; ++s) {
+        size_t plen = payload_sizes[s];
+        uint8_t buf[1536] = {0};
+
+        /* 1. RFC 7634 ChaCha20-Poly1305 */
+        esp_context_t tx_cc, rx_cc;
+        (void)esp_context_init(&tx_cc, 1u);
+        (void)esp_context_init(&rx_cc, 1u);
+        (void)esp_sa_install(&tx_cc, ESP_DIR_OUTBOUND, 0x10000100u, key, salt, NULL, 1000ULL);
+        (void)esp_sa_install(&rx_cc, ESP_DIR_INBOUND,  0x10000100u, key, salt, NULL, 1000ULL);
+
+        uint64_t c0 = bench_cycles_now();
+        for (uint32_t i = 0u; i < iters; ++i) {
+            size_t flen = 0u, off = 0u, dlen = 0u;
+            uint8_t nh = 0u;
+            (void)esp_encrypt_in_place(&tx_cc, buf, sizeof(buf), ESP_HDR_SIZE, plen,
+                                       4u, 2000ULL, &flen, NULL);
+            (void)esp_decrypt_in_place(&rx_cc, buf, flen, 2000ULL, &off, &dlen, &nh, NULL);
+        }
+        uint64_t c1 = bench_cycles_now();
+        double cpb_chacha = (double)(c1 - c0) / ((double)iters * (double)plen * 2.0);
+
+        /* 2. RFC 4106 Table-Free AES-256-GCM */
+        esp_context_t tx_gcm, rx_gcm;
+        (void)esp_context_init(&tx_gcm, 1u);
+        (void)esp_context_init(&rx_gcm, 1u);
+        (void)esp_context_set_crypto(&tx_gcm, esp_crypto_aes256_gcm_vtable());
+        (void)esp_context_set_crypto(&rx_gcm, esp_crypto_aes256_gcm_vtable());
+        (void)esp_sa_install(&tx_gcm, ESP_DIR_OUTBOUND, 0x20000200u, key, salt, NULL, 1000ULL);
+        (void)esp_sa_install(&rx_gcm, ESP_DIR_INBOUND,  0x20000200u, key, salt, NULL, 1000ULL);
+
+        uint32_t gcm_iters = 200u;
+        uint64_t g0 = bench_cycles_now();
+        for (uint32_t i = 0u; i < gcm_iters; ++i) {
+            size_t flen = 0u, off = 0u, dlen = 0u;
+            uint8_t nh = 0u;
+            (void)esp_encrypt_in_place(&tx_gcm, buf, sizeof(buf), ESP_HDR_SIZE, plen,
+                                       4u, 2000ULL, &flen, NULL);
+            (void)esp_decrypt_in_place(&rx_gcm, buf, flen, 2000ULL, &off, &dlen, &nh, NULL);
+        }
+        uint64_t g1 = bench_cycles_now();
+        double cpb_gcm = (double)(g1 - g0) / ((double)gcm_iters * (double)plen * 2.0);
+
+        printf(" %7zu B    | %10.2f cpb             | %10.2f cpb (bit-sliced/algebraic)\n",
+               plen, cpb_chacha, cpb_gcm);
+    }
+    printf("====================================================================================\n");
+    return 0;
+}
+
 /* --------------------------------------------------------------------------
  * DLT_RAW (101) IPv4 + ESP PCAP & Wireshark Keyfile Generator (--pcap)
  * -------------------------------------------------------------------------- */
@@ -370,10 +456,16 @@ static int generate_pcap(const char *pcap_path, const char *keys_path)
 int main(int argc, char **argv)
 {
     if (argc >= 2 && strcmp(argv[1], "--benchmark") == 0) {
-        return run_benchmark();
+        if (run_benchmark() != 0) {
+            return 1;
+        }
+        return run_throughput_benchmark();
     }
     if (argc >= 4 && strcmp(argv[1], "--pcap") == 0 && strcmp(argv[3], "--keys") == 0 && argc >= 5) {
         return generate_pcap(argv[2], argv[4]);
     }
-    return run_benchmark();
+    if (run_benchmark() != 0) {
+        return 1;
+    }
+    return run_throughput_benchmark();
 }
