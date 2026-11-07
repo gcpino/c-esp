@@ -37,6 +37,9 @@ endif
 ifneq ($(wildcard tests/test_rekey_fsm.c),)
     TESTS += $(BUILD_DIR)/test_rekey_fsm$(EXE)
 endif
+ifneq ($(wildcard tests/test_spd.c),)
+    TESTS += $(BUILD_DIR)/test_spd$(EXE)
+endif
 
 .PHONY: all test symbol-check ct-check pcap benchmark fuzz clean
 
@@ -83,7 +86,7 @@ ct-check: $(BUILD_DIR)/test_ct_dudect$(EXE)
 	./$(BUILD_DIR)/test_ct_dudect$(EXE)
 	@if $(CC) $(CFLAGS) -fsanitize=address,undefined -x c -E /dev/null >/dev/null 2>&1; then \
 		echo "[GATE] Running unit tests with ASan + UBSan..."; \
-		for src in $(wildcard tests/test_rfc_vectors.c tests/test_replay_esn.c tests/test_rekey_fsm.c); do \
+		for src in $(wildcard tests/test_rfc_vectors.c tests/test_replay_esn.c tests/test_rekey_fsm.c tests/test_spd.c); do \
 			bin="$(BUILD_DIR)/$$(basename $$src .c)_asan$(EXE)"; \
 			if $(CC) $(CFLAGS) -fsanitize=address,undefined $$src $(SRCS) -o $$bin 2>/dev/null; then \
 				./$$bin || exit 1; \

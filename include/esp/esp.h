@@ -7,6 +7,7 @@
 
 #include "esp/esp_crypto.h"
 #include "esp/esp_replay.h"
+#include "esp/esp_spd.h"
 #include "esp/esp_trace.h"
 #include "esp/esp_types.h"
 
