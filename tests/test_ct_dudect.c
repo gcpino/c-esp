@@ -221,10 +221,64 @@ static double run_dudect_padding_experiment(uint32_t seed)
     return welch_t_stat(&w0, &w1);
 }
 
+static double run_dudect_aes_gcm_experiment(uint32_t seed)
+{
+    static uint64_t samples[DUDECT_MEASUREMENTS];
+    static uint64_t sorted[DUDECT_MEASUREMENTS];
+    static uint8_t  classes[DUDECT_MEASUREMENTS];
+
+    static const uint8_t key_c0[32] = {0};
+    static const uint8_t key_c1[32] = {
+        0xfe, 0xff, 0xe9, 0x92, 0x86, 0x65, 0x73, 0x1c,
+        0x6d, 0x6a, 0x8f, 0x94, 0x67, 0x30, 0x83, 0x08,
+        0xfe, 0xff, 0xe9, 0x92, 0x86, 0x65, 0x73, 0x1c,
+        0x6d, 0x6a, 0x8f, 0x94, 0x67, 0x30, 0x83, 0x08
+    };
+    static const uint8_t nonce[12] = {
+        0xca, 0xfe, 0xba, 0xbe, 0xfa, 0xce, 0xdb, 0xad, 0xde, 0xca, 0xf8, 0x88
+    };
+    static const uint8_t aad[8] = {0x01, 0x02, 0x03, 0x04, 0x00, 0x00, 0x00, 0x01};
+    uint8_t work[16] = {0};
+    uint8_t tag[16]  = {0};
+
+    for (size_t i = 0u; i < DUDECT_MEASUREMENTS; ++i) {
+        uint8_t cls = (uint8_t)(xorshift32(&seed) & 1u);
+        classes[i] = cls;
+        const uint8_t *k = (cls == 0u) ? key_c0 : key_c1;
+        memset(work, (cls == 0u) ? 0x00 : 0xFF, sizeof(work));
+
+        uint64_t t0 = cpu_cycles_now();
+        for (size_t b = 0u; b < 4u; ++b) {
+            (void)esp_aes256_gcm_encrypt(k, nonce, aad, sizeof(aad), work, sizeof(work), tag);
+        }
+        uint64_t t1 = cpu_cycles_now();
+        samples[i] = (t1 >= t0) ? (t1 - t0) : 0ULL;
+        sorted[i]  = samples[i];
+    }
+
+    qsort(sorted, DUDECT_MEASUREMENTS, sizeof(uint64_t), cmp_u64);
+    uint64_t crop_cutoff = sorted[(DUDECT_MEASUREMENTS * 95u) / 100u];
+
+    welford_t w0, w1;
+    welford_init(&w0);
+    welford_init(&w1);
+    for (size_t i = 0u; i < DUDECT_MEASUREMENTS; ++i) {
+        if (samples[i] <= crop_cutoff) {
+            if (classes[i] == 0u) {
+                welford_push(&w0, (double)samples[i]);
+            } else {
+                welford_push(&w1, (double)samples[i]);
+            }
+        }
+    }
+    return welch_t_stat(&w0, &w1);
+}
+
 int main(void)
 {
     double t_tag = 99.0;
     double t_pad = 99.0;
+    double t_aes = 99.0;
 
     for (uint32_t attempt = 0u; attempt < 3u; ++attempt) {
         t_tag = run_dudect_tag_experiment(0xC0FFEE01u + attempt * 101u);
@@ -240,12 +294,21 @@ int main(void)
         }
     }
 
+    for (uint32_t attempt = 0u; attempt < 3u; ++attempt) {
+        t_aes = run_dudect_aes_gcm_experiment(0xDEADC0DEu + attempt * 101u);
+        if (t_aes <= DUDECT_T_THRESHOLD) {
+            break;
+        }
+    }
+
     printf("[DUDECT] Poly1305 tag memeq   : |t| = %.2f (threshold <= %.1f, N = 100,000, cropped 95%%)\n",
            t_tag, DUDECT_T_THRESHOLD);
     printf("[DUDECT] RFC 4303 pad window  : |t| = %.2f (threshold <= %.1f, N = 100,000, cropped 95%%)\n",
            t_pad, DUDECT_T_THRESHOLD);
+    printf("[DUDECT] AES-256-GCM S-box/GH : |t| = %.2f (threshold <= %.1f, N = 40,000,  cropped 95%%)\n",
+           t_aes, DUDECT_T_THRESHOLD);
 
-    if (t_tag > DUDECT_T_THRESHOLD || t_pad > DUDECT_T_THRESHOLD) {
+    if (t_tag > DUDECT_T_THRESHOLD || t_pad > DUDECT_T_THRESHOLD || t_aes > DUDECT_T_THRESHOLD) {
         fprintf(stderr, "[FAIL] Timing leakage detected (|t| > %.1f)\n", DUDECT_T_THRESHOLD);
         return 1;
     }

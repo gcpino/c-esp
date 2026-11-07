@@ -38,5 +38,20 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
     esp_event_t ev = ESP_EVENT_NONE;
     (void)esp_decrypt_in_place(&ctx, buf, size, 3000ULL, &off, &len, &nh, &ev);
     esp_context_wipe(&ctx);
+
+    esp_spd_t spd;
+    esp_spd_init(&spd);
+    esp_spd_rule_t rule = {
+        .rule_id = 1u, .priority = 10u, .src_ip = 0x0A000000u, .src_mask = 0xFF000000u,
+        .dst_ip = 0xC0A80000u, .dst_mask = 0xFFFF0000u, .src_port_min = 0u, .src_port_max = 65535u,
+        .dst_port_min = 0u, .dst_port_max = 65535u, .protocol = 0u, .action = ESP_SPD_ACTION_PROTECT,
+        .bound_spi = 0x01020304u
+    };
+    (void)esp_spd_add_rule(&spd, &rule);
+    esp_spd_action_t act = ESP_SPD_ACTION_DISCARD;
+    uint32_t b_spi = 0u;
+    uint16_t m_id  = 0u;
+    (void)esp_spd_classify_ipv4(&spd, data, size, &act, &b_spi, &m_id);
+    esp_spd_zeroize(&spd);
     return 0;
 }

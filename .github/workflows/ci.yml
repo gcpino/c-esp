@@ -13,10 +13,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install tshark for PCAP wire verification
+      - name: Install tshark, valgrind, and clang
         run: |
           sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y tshark
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y tshark valgrind libc6-dbg clang llvm
 
       - name: Gate 1 — Strict C11 Build (-Wall -Wextra -Werror -Wpedantic)
         run: make all
@@ -24,11 +24,16 @@ jobs:
       - name: Gate 2 — Zero-Allocation & Freestanding Symbol Audit (nm -u)
         run: make symbol-check
 
-      - name: Gate 3 — RFC 8439, RFC 7634 App A, RFC 6479 ESN & Rekey Unit Tests
+      - name: Gate 3 — RFC 8439, RFC 7634, RFC 4106, RFC 6479, RFC 4301 SPD & Rekey Unit Tests
         run: make test
 
-      - name: Gate 4 — Constant-Time Timing (dudect) & ASan/UBSan Sanitizer Suite
+      - name: Gate 4 — Constant-Time Timing (dudect), Valgrind ctgrind & ASan/UBSan Sanitizer Suite
         run: make ct-check
 
-      - name: Gate 5 — Channel Physics Benchmark & Wireshark tshark Dissection
+      - name: Gate 5 — Channel Physics Benchmark (cpb) & Wireshark tshark Dissection
         run: make pcap benchmark
+
+      - name: Gate 6 — Clang libFuzzer + ASan/UBSan Corpus Campaign
+        run: |
+          make fuzz
+          ./build/fuzz_esp_decrypt -max_total_time=10

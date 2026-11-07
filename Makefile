@@ -81,9 +81,16 @@ symbol-check: $(LIB_A)
 		echo "[PASS] Zero heap/OS symbols in $(LIB_A)"; \
 	fi
 
-ct-check: $(BUILD_DIR)/test_ct_dudect$(EXE)
+ct-check: $(BUILD_DIR)/test_ct_dudect$(EXE) $(BUILD_DIR)/test_ct_valgrind$(EXE)
 	@echo "[GATE] Running dudect constant-time verification..."
 	./$(BUILD_DIR)/test_ct_dudect$(EXE)
+	@if command -v valgrind >/dev/null 2>&1; then \
+		echo "[GATE] Running Valgrind ctgrind instruction-level secret-taint verification..."; \
+		valgrind --error-exitcode=1 --track-origins=yes ./$(BUILD_DIR)/test_ct_valgrind$(EXE); \
+	else \
+		echo "[GATE] Running test_ct_valgrind (host without valgrind binary)..."; \
+		./$(BUILD_DIR)/test_ct_valgrind$(EXE); \
+	fi
 	@if $(CC) $(CFLAGS) -fsanitize=address,undefined -x c -E /dev/null >/dev/null 2>&1; then \
 		echo "[GATE] Running unit tests with ASan + UBSan..."; \
 		for src in $(wildcard tests/test_rfc_vectors.c tests/test_replay_esn.c tests/test_rekey_fsm.c tests/test_spd.c); do \
