@@ -97,7 +97,7 @@ pcap: $(BUILD_DIR)/sim_channel$(EXE)
 	./$(BUILD_DIR)/sim_channel$(EXE) --pcap esp_capture.pcap --keys esp_sa_keys
 	@if command -v tshark >/dev/null 2>&1; then \
 		echo "[GATE] Dissecting esp_capture.pcap with tshark..."; \
-		tshark -r esp_capture.pcap; \
+		tshark -r - < esp_capture.pcap; \
 	else \
 		echo "[INFO] tshark not in PATH; verified esp_capture.pcap and esp_sa_keys generation."; \
 	fi
