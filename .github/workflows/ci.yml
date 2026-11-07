@@ -1,0 +1,34 @@
+name: c-esp Verification Gates
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install tshark for PCAP wire verification
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y tshark
+
+      - name: Gate 1 — Strict C11 Build (-Wall -Wextra -Werror -Wpedantic)
+        run: make all
+
+      - name: Gate 2 — Zero-Allocation & Freestanding Symbol Audit (nm -u)
+        run: make symbol-check
+
+      - name: Gate 3 — RFC 8439, RFC 7634 App A, RFC 6479 ESN & Rekey Unit Tests
+        run: make test
+
+      - name: Gate 4 — Constant-Time Timing (dudect) & ASan/UBSan Sanitizer Suite
+        run: make ct-check
+
+      - name: Gate 5 — Channel Physics Benchmark & Wireshark tshark Dissection
+        run: make pcap benchmark
