@@ -1,8 +1,10 @@
 # `c-esp` — Zero-Allocation Sans-IO IPsec ESP Data-Plane Engine in C11
 
+[![CI Verification Gates](https://github.com/gcpino/c-esp/actions/workflows/ci.yml/badge.svg)](https://github.com/gcpino/c-esp/actions/workflows/ci.yml)
 [![Language: C11](https://img.shields.io/badge/std-C11%20(freestanding)-b25d3b.svg)](#)
 [![Heap Allocations: 0](https://img.shields.io/badge/malloc%2Ffree-0%20bytes-4f785e.svg)](#)
 [![Standards: RFC 4303 / 7634 / 6479 / 8439](https://img.shields.io/badge/IETF-RFC%204303%20%7C%207634%20%7C%206479%20%7C%208439-48697a.svg)](#)
+[![License: MIT](https://img.shields.io/badge/License-MIT-6e6557.svg)](LICENSE)
 
 `c-esp` is a standalone, zero-allocation, **Sans-IO IPsec Encapsulating Security Payload (ESP)** data-plane and Security Association (SA) lifecycle engine implemented in strict ISO C11 (`-std=c11 -Wall -Wextra -Werror -Wpedantic`).
 
