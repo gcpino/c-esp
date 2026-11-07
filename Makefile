@@ -58,7 +58,7 @@ $(BUILD_DIR)/linux_udp_tun$(EXE): examples/linux_udp_tun.c $(LIB_A) | $(BUILD_DI
 	$(CC) $(CFLAGS) $< $(LIB_A) $(UDP_LIBS) -o $@
 
 $(BUILD_DIR)/test_%$(EXE): tests/test_%.c $(LIB_A) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $< $(LIB_A) -o $@
+	$(CC) $(CFLAGS) $< $(LIB_A) -lm -o $@
 
 $(BUILD_DIR)/sim_channel$(EXE): tests/sim_channel.c $(LIB_A) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $< $(LIB_A) -lm -o $@
