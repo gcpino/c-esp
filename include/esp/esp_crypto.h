@@ -29,6 +29,11 @@ typedef struct {
 const esp_crypto_vtable_t *esp_crypto_default_vtable(void);
 
 /**
+ * @brief Return a pointer to the built-in RFC 4106 / NIST SP 800-38D AES-256-GCM AEAD vtable.
+ */
+const esp_crypto_vtable_t *esp_crypto_aes256_gcm_vtable(void);
+
+/**
  * @brief Encrypt `buf[0..len-1]` in place using RFC 8439 ChaCha20-Poly1305 and write the 16-byte tag.
  */
 esp_err_t esp_chacha20_poly1305_encrypt(const uint8_t key[32], const uint8_t nonce[12],
@@ -42,6 +47,22 @@ esp_err_t esp_chacha20_poly1305_encrypt(const uint8_t key[32], const uint8_t non
 esp_err_t esp_chacha20_poly1305_decrypt(const uint8_t key[32], const uint8_t nonce[12],
                                         const uint8_t *aad, size_t aad_len,
                                         uint8_t *buf, size_t len, const uint8_t tag[16]);
+
+/**
+ * @brief Encrypt `buf[0..len-1]` in place using RFC 4106 / NIST SP 800-38D AES-256-GCM and write the 16-byte tag.
+ *        Implemented with table-free constant-time GF(2^8) S-box evaluation and bitwise GF(2^128) GHASH.
+ */
+esp_err_t esp_aes256_gcm_encrypt(const uint8_t key[32], const uint8_t nonce[12],
+                                 const uint8_t *aad, size_t aad_len,
+                                 uint8_t *buf, size_t len, uint8_t tag[16]);
+
+/**
+ * @brief Verify `tag[0..15]` in constant time via GHASH over the ciphertext and AAD, then decrypt `buf[0..len-1]` in place.
+ *        If authentication fails, `buf` is left untouched and `ESP_ERR_AUTH_FAILED` is returned.
+ */
+esp_err_t esp_aes256_gcm_decrypt(const uint8_t key[32], const uint8_t nonce[12],
+                                 const uint8_t *aad, size_t aad_len,
+                                 uint8_t *buf, size_t len, const uint8_t tag[16]);
 
 /**
  * @brief Constant-time 32-bit bitwise multiplexer with compiler optimization barrier.
