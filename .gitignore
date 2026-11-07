@@ -1,0 +1,16 @@
+# Build artifacts
+build/
+*.o
+*.a
+*.exe
+*.out
+*.pdb
+*.ilk
+
+# Generated verification & capture artifacts
+esp_capture.pcap
+esp_sa_keys
+fuzz_corpus/
+crash-*
+leak-*
+timeout-*
