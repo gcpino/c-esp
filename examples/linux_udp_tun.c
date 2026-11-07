@@ -9,6 +9,7 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 typedef SOCKET sock_fd_t;
+typedef int sock_len_arg_t;
 #define CLOSE_SOCK(s) closesocket(s)
 #else
 #include <arpa/inet.h>
@@ -16,6 +17,7 @@ typedef SOCKET sock_fd_t;
 #include <sys/socket.h>
 #include <unistd.h>
 typedef int sock_fd_t;
+typedef size_t sock_len_arg_t;
 #define CLOSE_SOCK(s) close(s)
 #endif
 
@@ -76,11 +78,11 @@ int main(void)
         esp_event_t ev = ESP_EVENT_NONE;
         if (esp_encrypt_in_place(&tx_ctx, pkt, sizeof(pkt), ESP_HDR_SIZE,
                                  sizeof(payload), 4u, 2000000ULL, &flen, &ev) == ESP_OK) {
-            (void)sendto(s_tx, (const char *)pkt, (int)flen, 0,
+            (void)sendto(s_tx, (const char *)pkt, (sock_len_arg_t)flen, 0,
                          (const struct sockaddr *)&addr, (socklen_t)sizeof(addr));
 
             uint8_t rx_buf[256] = {0};
-            int rlen = (int)recvfrom(s_rx, (char *)rx_buf, (int)sizeof(rx_buf), 0, NULL, NULL);
+            int rlen = (int)recvfrom(s_rx, (char *)rx_buf, (sock_len_arg_t)sizeof(rx_buf), 0, NULL, NULL);
             if (rlen > 0) {
                 size_t off = 0u;
                 size_t plen = 0u;
